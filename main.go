@@ -90,6 +90,19 @@ func main() {
 	for i, v := range arr1 {
 		fmt.Println(i, v)
 	}
+
+	var option = 2
+	switch option {
+	case 1:
+		fmt.Println("Case for 1")
+	case 2:
+		fmt.Println("Case for 2")
+		fallthrough
+	case 3:
+		fmt.Println("Case for 3 fall from 2")
+	default:
+		fmt.Println("Case", option)
+	}
 }
 
 func Add(x int, y int) int {
