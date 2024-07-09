@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 )
 
@@ -103,6 +104,18 @@ func main() {
 	default:
 		fmt.Println("Case", option)
 	}
+
+	_, err := Divide(5, 0)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	divideResult, err := Divide(6, 4)
+	if err != nil {
+		fmt.Println(err)
+	} else {
+		fmt.Println("Divide result:", divideResult)
+	}
 }
 
 func Add(x int, y int) int {
@@ -111,4 +124,11 @@ func Add(x int, y int) int {
 
 func Log(message string) {
 	fmt.Println(message)
+}
+
+func Divide(x int, y int) (int, error) {
+	if y == 0 {
+		return 0, errors.New("division by zero")
+	}
+	return x / y, nil
 }
