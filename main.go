@@ -1,134 +1,194 @@
 package main
 
 import (
-	"errors"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"log"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
 )
 
-const pi = 3.1415926
+type Product struct {
+	ProductId      int     `json:"productId"`
+	Manufacturer   string  `json:"manufacturer"`
+	Sku            string  `json:"sku"`
+	Upc            string  `json:"upc"`
+	PricePerUnit   float64 `json:"pricePerUnit"`
+	QuantityOnHand int     `json:"quantityOnHand"`
+	ProductName    string  `json:"productName"`
+}
 
-func main() {
+var productsList []Product
 
-	// Variable definition and assigment
-
-	var str1 string
-	str1 = "str1"
-	fmt.Println("Str1: " + str1)
-
-	var str2 = "str2"
-	fmt.Println("Str2: ", str2)
-
-	fmt.Println("Const pi value: %s", pi)
-
-	var x, y, z int
-	x = 1
-	y = 2
-	z = 3
-	fmt.Println(x, y, z)
-
-	type User struct {
-		Id        int
-		FirstName string
-		LastName  string
+func init() {
+	productsJson := ` [
+{
+    "productId": 1,
+    "manufacturer": "Johns-Jenkins",
+    "sku": "p5z343vdS",
+    "upc": "939581000000",
+    "pricePerUnit": 497.45,
+    "quantityOnHand": 9703,
+    "productName": "sticky note"
+  },
+  {
+    "productId": 2,
+    "manufacturer": "Hessel, Schimmel and Feeney",
+    "sku": "i7v300kmx",
+    "upc": "740979000000",
+    "pricePerUnit": 282.29,
+    "quantityOnHand": 9217,
+    "productName": "leg warmers"
+  },
+  {
+    "productId": 3,
+    "manufacturer": "Swaniawski, Bartoletti and Bruen",
+    "sku": "q0L657ys7",
+    "upc": "111730000000",
+    "pricePerUnit": 436.26,
+    "quantityOnHand": 5905,
+    "productName": "lamp shade"
+  }
+]
+`
+	err := json.Unmarshal([]byte(productsJson), &productsList)
+	if err != nil {
+		log.Fatal(err)
 	}
+}
 
-	var defaultUser User
-	fmt.Println("defaultUser -> ", defaultUser)
-
-	var user1 = User{
-		Id:        1,
-		FirstName: "John",
-		LastName:  "Doe",
-	}
-
-	fmt.Println("user1 -> ", user1)
-
-	var arr1 = [3]int{1, 2, 3}
-	fmt.Println("arr1 -> ", arr1)
-
-	var slice1 = []int{1, 2, 3}
-	fmt.Println("slice1 -> ", slice1)
-
-	slice2 := append(slice1, 5, 6, 7)
-	fmt.Println("slice2 -> ", slice2)
-
-	// Function & Method
-	var operand1 int
-	operand1 = 1
-	operand2 := 3
-
-	addResult := Add(operand1, operand2)
-	fmt.Println("addResult -> ", addResult)
-
-	var calc = Calculator{}
-	calcRemoveResult := calc.Remove(8, 5)
-	fmt.Println("calcRemoveResult -> ", calcRemoveResult)
-
-	Log("Log function execution")
-
-	// Program Flow
-
-	var index1 int
-	for {
-		fmt.Println("index1 -> ", index1)
-		index1++
-		if index1 > 3 {
-			break
+func getNextId() int {
+	highestId := -1
+	for _, product := range productsList {
+		if highestId < product.ProductId {
+			highestId = product.ProductId
 		}
 	}
 
-	var index2 int
-	for index2 < 3 {
-		fmt.Println("index2 -> ", index2)
-		index2++
+	return highestId + 1
+
+}
+
+func findProductById(productId int) (*Product, int) {
+	for i, product := range productsList {
+		if product.ProductId == productId {
+			return &productsList[i], i
+		}
 	}
 
-	for index3 := 0; index3 < 3; index3++ {
-		fmt.Println("index3 -> ", index3)
+	return nil, -1
+}
+
+func productHandler(w http.ResponseWriter, r *http.Request) {
+	urlPathSegments := strings.Split(r.URL.Path, "products/")
+	productId, err := strconv.Atoi(urlPathSegments[len(urlPathSegments)-1])
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		return
 	}
 
-	arr1 = [3]int{1, 2, 3}
-	for i, v := range arr1 {
-		fmt.Println(i, v)
+	product, listItemIndex := findProductById(productId)
+	if product == nil {
+		w.WriteHeader(http.StatusNotFound)
+		return
 	}
 
-	var option = 2
-	switch option {
-	case 1:
-		fmt.Println("Case for 1")
-	case 2:
-		fmt.Println("Case for 2")
-		fallthrough
-	case 3:
-		fmt.Println("Case for 3 fall from 2")
+	switch r.Method {
+	case http.MethodGet:
+		productJson, err := json.Marshal(product)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(productJson)
+
+	case http.MethodPut:
+		var updatedProduct Product
+		bodyBytes, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		err = json.Unmarshal(bodyBytes, &updatedProduct)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		if updatedProduct.ProductId != productId {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		product = &updatedProduct
+		productsList[listItemIndex] = updatedProduct
+		w.WriteHeader(http.StatusOK)
+		return
+
 	default:
-		fmt.Println("Case", option)
+		w.WriteHeader(http.StatusMethodNotAllowed)
+
 	}
 
-	_, err := Divide(5, 0)
-	if err != nil {
-		fmt.Println(err)
-	}
+}
 
-	divideResult, err := Divide(6, 4)
-	if err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Println("Divide result:", divideResult)
+func productListHandler(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		productsJson, err := json.Marshal(productsList)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(productsJson)
+
+	case http.MethodPost:
+		var newProduct Product
+		bodyBytes, err := ioutil.ReadAll(r.Body)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		err = json.Unmarshal(bodyBytes, &newProduct)
+		if err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		if newProduct.ProductId != 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		newProduct.ProductId = getNextId()
+		productsList = append(productsList, newProduct)
+		w.WriteHeader(http.StatusCreated)
+		return
 	}
 }
 
-func Add(x int, y int) int {
-	return x + y
+func timeConsumptionMiddleware(handler http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fmt.Println("middleware start")
+		start := time.Now()
+		handler.ServeHTTP(w, r)
+		fmt.Println("middleware end in %s", time.Since(start))
+	})
 }
 
-func Log(message string) {
-	fmt.Println(message)
-}
+func main() {
+	pListHandler := http.HandlerFunc(productListHandler)
+	pHandler := http.HandlerFunc(productHandler)
 
-func Divide(x int, y int) (int, error) {
-	if y == 0 {
-		return 0, errors.New("division by zero")
-	}
-	return x / y, nil
+	http.Handle("/products", timeConsumptionMiddleware(pListHandler))
+	http.Handle("/products/", timeConsumptionMiddleware(pHandler))
+	http.ListenAndServe(":8080", nil)
 }
